@@ -6,8 +6,9 @@
 <title>Trasa po Warszawie — mapa krok po kroku</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
-  html,body{margin:0;height:100%;font-family:Arial,Helvetica,sans-serif;}
-  #map{height:100%;background:#eef0f2;}
+  html,body{margin:0;height:100%;font-family:Arial,Helvetica,sans-serif;overflow:hidden;}
+  #mapwrap{position:absolute;inset:0;perspective:1100px;perspective-origin:50% 100%;overflow:hidden;background:#eef0f2;}
+  #map{height:100%;transform-origin:50% 100%;transition:transform .25s ease-out;will-change:transform;}
   #panel{position:absolute;top:10px;right:10px;width:330px;max-height:calc(100vh - 20px);overflow-y:auto;background:#fff;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,.25);padding:12px 14px;z-index:1000;}
   #panel h1{font-size:16px;margin:0 0 6px;}
   #status{font-size:13px;font-weight:bold;color:#c81e1e;margin-bottom:6px;}
@@ -15,6 +16,7 @@
   #cur .note{color:#555;}
   #cur .day{display:inline-block;background:#e8f0e8;color:#1e7a1e;border-radius:6px;padding:1px 6px;font-size:11px;margin-top:4px;}
   .btns{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
+  .tiltrow{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:8px;}
   button{cursor:pointer;border:1px solid #ccc;background:#fff;border-radius:6px;padding:6px 10px;font-size:13px;}
   button:hover{background:#f5f5f5;}
   #next{background:#c81e1e;color:#fff;border-color:#c81e1e;}
@@ -36,7 +38,7 @@
 </style>
 </head>
 <body>
-<div id="map"></div>
+<div id="mapwrap"><div id="map"></div></div>
 <div id="panel">
   <h1>🗺️ Trasa po Warszawie — 11 punktów</h1>
   <div id="status"></div>
@@ -47,6 +49,7 @@
     <button id="auto">▶ Auto</button>
     <button id="all">↺ Start</button>
   </div>
+  <div class="tiltrow"><span>🧭 Nachylenie</span><input id="tilt" type="range" min="0" max="65" step="1" value="0" style="flex:1"><span id="tiltval">0°</span></div>
   <ol id="list"></ol>
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -167,6 +170,28 @@ document.getElementById('auto').addEventListener('click', ()=>{
   document.getElementById('auto').textContent='⏸ Pauza';
   timer = setInterval(()=>{ if(step>=POINTS.length){stopAuto(); return;} go(step+1); }, 2600);
 });
+
+let tilt = 0;
+const mapEl = document.getElementById('map');
+function setTilt(d){
+  tilt = Math.max(0, Math.min(65, d));
+  mapEl.style.transform = 'rotateX(' + tilt + 'deg)';
+  document.getElementById('tiltval').textContent = Math.round(tilt) + '°';
+  document.getElementById('tilt').value = Math.round(tilt);
+}
+document.getElementById('tilt').addEventListener('input', e=>setTilt(+e.target.value));
+let twoFinger = null;
+mapEl.addEventListener('touchstart', e=>{
+  if(e.touches.length===2){ twoFinger = {y:(e.touches[0].clientY+e.touches[1].clientY)/2, tilt:tilt}; }
+}, {passive:true});
+mapEl.addEventListener('touchmove', e=>{
+  if(e.touches.length===2 && twoFinger){
+    e.preventDefault();
+    const y = (e.touches[0].clientY + e.touches[1].clientY)/2;
+    setTilt(twoFinger.tilt + (twoFinger.y - y)/1.5);
+  }
+}, {passive:false});
+mapEl.addEventListener('touchend', ()=>{ twoFinger = null; });
 
 go(0);
 </script>
