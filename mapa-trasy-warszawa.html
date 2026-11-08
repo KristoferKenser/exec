@@ -7,28 +7,31 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
   html,body{margin:0;height:100%;font-family:Arial,Helvetica,sans-serif;}
-  #map{height:100%;}
-  #panel{position:absolute;top:10px;right:10px;width:330px;max-height:calc(100vh - 20px);overflow-y:auto;background:#fff;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,.35);padding:12px 14px;z-index:1000;}
+  #map{height:100%;background:#eef0f2;}
+  #panel{position:absolute;top:10px;right:10px;width:330px;max-height:calc(100vh - 20px);overflow-y:auto;background:#fff;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,.25);padding:12px 14px;z-index:1000;}
   #panel h1{font-size:16px;margin:0 0 6px;}
-  #status{font-size:13px;font-weight:bold;color:#1a73e8;margin-bottom:6px;}
-  #cur{font-size:13px;line-height:1.45;background:#f4f7ff;border-radius:8px;padding:8px 10px;margin-bottom:8px;}
+  #status{font-size:13px;font-weight:bold;color:#c81e1e;margin-bottom:6px;}
+  #cur{font-size:13px;line-height:1.45;background:#faf3f3;border-radius:8px;padding:8px 10px;margin-bottom:8px;}
   #cur .note{color:#555;}
   #cur .day{display:inline-block;background:#e8f0e8;color:#1e7a1e;border-radius:6px;padding:1px 6px;font-size:11px;margin-top:4px;}
   .btns{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
   button{cursor:pointer;border:1px solid #ccc;background:#fff;border-radius:6px;padding:6px 10px;font-size:13px;}
-  button:hover{background:#eef;}
-  #next{background:#1a73e8;color:#fff;border-color:#1a73e8;}
+  button:hover{background:#f5f5f5;}
+  #next{background:#c81e1e;color:#fff;border-color:#c81e1e;}
   #list{margin:0;padding-left:0;list-style:none;font-size:13px;}
   #list li{padding:5px 6px;border-radius:6px;cursor:pointer;display:flex;gap:6px;align-items:center;}
   #list li:hover{background:#f0f0f0;}
-  #list li.active{background:#ffe3c2;font-weight:bold;}
-  #list li.done{color:#1a73e8;}
-  #list li.done .num{background:#1a73e8;}
+  #list li.active{background:#fbdcdc;font-weight:bold;}
+  #list li.done{color:#c81e1e;}
+  #list li.done .num{background:#c81e1e;}
+  #list li.locked{color:#b8b8b8;cursor:default;}
+  #list li.locked .num{background:#d5d5d5;}
   #list .num{display:inline-flex;width:22px;height:22px;border-radius:50%;background:#9ab;color:#fff;align-items:center;justify-content:center;font-size:12px;font-weight:bold;flex:none;}
   #list .day{margin-left:auto;font-size:11px;color:#888;}
   .pinwrap{background:none;border:none;}
-  .pin{width:30px;height:30px;border-radius:50%;background:#1a73e8;color:#fff;font-weight:bold;font-size:14px;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.45);transition:transform .2s;}
-  .pin.active{background:#e8710a;transform:scale(1.4);}
+  .pin{width:30px;height:30px;border-radius:50%;background:#c81e1e;color:#fff;font-weight:bold;font-size:14px;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.4);transition:transform .2s;}
+  .pin.active{background:#1a73e8;transform:scale(1.4);}
+  .pin.done{background:#c81e1e;}
   @media (max-width:600px){#panel{width:calc(100vw - 20px);}}
 </style>
 </head>
@@ -42,7 +45,7 @@
     <button id="prev">⬅ Wstecz</button>
     <button id="next">Następny ▶</button>
     <button id="auto">▶ Auto</button>
-    <button id="all">🗺 Cała trasa</button>
+    <button id="all">↺ Start</button>
   </div>
   <ol id="list"></ol>
 </div>
@@ -62,10 +65,11 @@ const POINTS = [
   {n:11, day:2, name:"Dom Kereta 🏁", addr:"ul. Chłodna 22", note:"Najwęższy dom w Europie (~1,5 m) — tylko z zewnątrz; blisko metro Rondo Daszyńskiego", c:[52.2353,20.9896], next:"🏁 koniec trasy"}
 ];
 
-const map = L.map('map').setView([52.233, 21.02], 12);
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+const map = L.map('map').setView(POINTS[0].c, 15);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
   maxZoom: 19,
-  attribution: '&copy; OpenStreetMap'
+  subdomains: 'abcd',
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
 }).addTo(map);
 L.control.scale().addTo(map);
 
@@ -73,16 +77,29 @@ function pin(n, active){
   return L.divIcon({className:'pinwrap', html:'<div class="pin'+(active?' active':'')+'">'+n+'</div>', iconSize:[30,30], iconAnchor:[15,15], popupAnchor:[0,-16]});
 }
 
-const full = L.polyline(POINTS.map(p=>p.c), {color:'#8a97a8', weight:4, dashArray:'8 8', interactive:false}).addTo(map);
-const prog = L.polyline([], {color:'#1a73e8', weight:6, interactive:false}).addTo(map);
-
-const markers = POINTS.map((p,i)=>L.marker(p.c, {icon:pin(p.n,false)}).addTo(map)
+const markers = POINTS.map((p,i)=>L.marker(p.c, {icon:pin(p.n,false)})
   .bindPopup('<b>'+p.n+'. '+p.name+'</b><br>'+p.addr+'<br><i>'+p.note+'</i><br><small>Dzień '+p.day+'</small>'));
+
+function curve(a, b, sign){
+  const mx=(a[0]+b[0])/2, my=(a[1]+b[1])/2;
+  const dx=b[1]-a[1], dy=b[0]-a[0];
+  const len=Math.hypot(dx,dy)||1e-9;
+  const off=Math.min(0.14*len, 0.0022)*sign;
+  const cx=mx+(-dy/len)*off, cy=my+(dx/len)*off;
+  const pts=[];
+  for(let i=0;i<=24;i++){
+    const t=i/24, u=1-t;
+    pts.push([u*u*a[0]+2*u*t*cx+t*t*b[0], u*u*a[1]+2*u*t*cy+t*t*b[1]]);
+  }
+  return pts;
+}
+
+const segLayers = [];
+let step = 0, timer = null;
 
 const status = document.getElementById('status');
 const cur = document.getElementById('cur');
 const list = document.getElementById('list');
-let step = 0, timer = null;
 
 POINTS.forEach((p,i)=>{
   const li = document.createElement('li');
@@ -96,21 +113,42 @@ function zoomFor(n){ return Math.min(13 + Math.ceil(n/2), 18); }
 function go(n){
   stopAuto();
   step = Math.max(0, Math.min(POINTS.length, n));
-  markers.forEach((m,i)=>m.setIcon(pin(i+1, i+1===step)));
-  prog.setLatLngs(POINTS.slice(0, step+1).map(p=>p.c));
+  const vis = step===0 ? 1 : step;
+  markers.forEach((m,i)=>{
+    if(i<vis){ if(!map.hasLayer(m)) map.addLayer(m); }
+    else if(map.hasLayer(m)) map.removeLayer(m);
+    m.setIcon(pin(i+1, i+1===step));
+  });
+  while(segLayers.length > Math.max(0, step-1)){
+    const pair = segLayers.pop();
+    pair.forEach(l=>map.removeLayer(l));
+  }
+  for(let s=segLayers.length+2; s<=step; s++){
+    const pts = curve(POINTS[s-2].c, POINTS[s-1].c, (s%2===0)?1:-1);
+    const casing = L.polyline(pts, {color:'#ffffff', weight:11, opacity:.85, lineCap:'round', lineJoin:'round', interactive:false});
+    const line = L.polyline(pts, {color:'#d62020', weight:6.5, opacity:.95, lineCap:'round', lineJoin:'round', interactive:false});
+    casing.addTo(map);
+    line.addTo(map);
+    segLayers.push([casing, line]);
+  }
   const items = list.querySelectorAll('li');
-  items.forEach((li,i)=>{ li.classList.toggle('active', i+1===step); li.classList.toggle('done', i+1<step); });
+  items.forEach((li,i)=>{
+    li.classList.toggle('active', i+1===step);
+    li.classList.toggle('done', i+1<step);
+    li.classList.toggle('locked', i+1>vis);
+  });
   if(step===0){
-    status.textContent = 'Przegląd całej trasy — ' + POINTS.length + ' punktów (start: Stare Miasto)';
-    cur.innerHTML = 'Kliknij „Następny ▶" — mapa będzie przeskakiwać punkt po punkcie i <b>powiększać się inkrementalnie z każdym krokiem</b>.';
-    map.flyToBounds(full.getBounds(), {padding:[60,60]});
+    status.textContent = 'Start — punkt 1 z ' + POINTS.length;
+    cur.innerHTML = '<b>1. '+POINTS[0].name+'</b><br>'+POINTS[0].addr+'<br><span class="note">'+POINTS[0].note+'</span><br>Kliknij „Następny ▶" — <b>kolejne punkty i czerwona trasa pojawią się dopiero po dojściu do nich</b>, a mapa będzie się powiększać z każdym krokiem.';
+    map.flyTo(POINTS[0].c, 15, {duration:1.0});
   } else {
     const p = POINTS[step-1];
     status.textContent = 'Krok ' + step + ' / ' + POINTS.length + ' — Dzień ' + p.day;
     cur.innerHTML = '<b>'+p.n+'. '+p.name+'</b><br>'+p.addr+'<br><span class="note">'+p.note+'</span><br><span class="day">Dzień '+p.day+'</span><br><b>Dalej:</b> '+p.next;
     const z = zoomFor(step);
-    if(step>1 && map.distance(POINTS[step-2].c, p.c) > 1500){
-      map.flyToBounds(L.latLngBounds([POINTS[step-2].c, p.c]), {padding:[80,80], maxZoom:z, duration:1.2});
+    if(step>=2 && map.distance(POINTS[step-2].c, p.c) <= 1500){
+      const pts = curve(POINTS[step-2].c, p.c, (step%2===0)?1:-1);
+      map.flyToBounds(L.latLngBounds(pts), {padding:[110,110], maxZoom:z, duration:1.1});
     } else {
       map.flyTo(p.c, z, {duration:1.1});
     }
