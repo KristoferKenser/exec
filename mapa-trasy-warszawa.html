@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trasa po Warszawie — mapa krok po kroku</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  html,body{margin:0;height:100%;font-family:Arial,Helvetica,sans-serif;}
+  #map{height:100%;}
+  #panel{position:absolute;top:10px;right:10px;width:330px;max-height:calc(100vh - 20px);overflow-y:auto;background:#fff;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,.35);padding:12px 14px;z-index:1000;}
+  #panel h1{font-size:16px;margin:0 0 6px;}
+  #status{font-size:13px;font-weight:bold;color:#1a73e8;margin-bottom:6px;}
+  #cur{font-size:13px;line-height:1.45;background:#f4f7ff;border-radius:8px;padding:8px 10px;margin-bottom:8px;}
+  #cur .note{color:#555;}
+  #cur .day{display:inline-block;background:#e8f0e8;color:#1e7a1e;border-radius:6px;padding:1px 6px;font-size:11px;margin-top:4px;}
+  .btns{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
+  button{cursor:pointer;border:1px solid #ccc;background:#fff;border-radius:6px;padding:6px 10px;font-size:13px;}
+  button:hover{background:#eef;}
+  #next{background:#1a73e8;color:#fff;border-color:#1a73e8;}
+  #list{margin:0;padding-left:0;list-style:none;font-size:13px;}
+  #list li{padding:5px 6px;border-radius:6px;cursor:pointer;display:flex;gap:6px;align-items:center;}
+  #list li:hover{background:#f0f0f0;}
+  #list li.active{background:#ffe3c2;font-weight:bold;}
+  #list li.done{color:#1a73e8;}
+  #list li.done .num{background:#1a73e8;}
+  #list .num{display:inline-flex;width:22px;height:22px;border-radius:50%;background:#9ab;color:#fff;align-items:center;justify-content:center;font-size:12px;font-weight:bold;flex:none;}
+  #list .day{margin-left:auto;font-size:11px;color:#888;}
+  .pinwrap{background:none;border:none;}
+  .pin{width:30px;height:30px;border-radius:50%;background:#1a73e8;color:#fff;font-weight:bold;font-size:14px;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.45);transition:transform .2s;}
+  .pin.active{background:#e8710a;transform:scale(1.4);}
+  @media (max-width:600px){#panel{width:calc(100vw - 20px);}}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="panel">
+  <h1>🗺️ Trasa po Warszawie — 11 punktów</h1>
+  <div id="status"></div>
+  <div id="cur"></div>
+  <div class="btns">
+    <button id="prev">⬅ Wstecz</button>
+    <button id="next">Następny ▶</button>
+    <button id="auto">▶ Auto</button>
+    <button id="all">🗺 Cała trasa</button>
+  </div>
+  <ol id="list"></ol>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const POINTS = [
+  {n:1, day:1, name:"Stare Miasto — START", addr:"Rynek Starego Miasta / Plac Zamkowy", note:"Zamek Królewski, rynek, katedra św. Jana, Kolumna Zygmunta, barbakan", c:[52.2497,21.0122], next:"🚶 5 min w dół na bulwary"},
+  {n:2, day:1, name:"Bulwary wiślane", addr:"Wybrzeże Kościuszkowskie / Hetmańskie", note:"Promenada nad Wisłą, plaże miejskie, widok na Pragę", c:[52.2437,21.0140], next:"🌉 most Śląsko-Dąbrowski, 🚶 10 min na Pragę"},
+  {n:3, day:1, name:"Prawy brzeg Wisły (dziki)", addr:"Praga Północ — Port Praski, plaża przy moście Poniatowskiego", note:"Dzikie plaże, bulwary praskie, najlepszy widok z powrotem na Stare Miasto", c:[52.2553,21.0407], next:"🚶 20 min — powrót mostem Poniatowskiego na lewy brzeg"},
+  {n:4, day:1, name:"Elektrownia Powiśle", addr:"ul. Elektryczna 2", note:"Restauracje i sklepy w dawnej elektrowni, tuż nad wodą — przerwa na kawę", c:[52.2373,21.0300], next:"🚶 10 min (Karowa → Dobra)"},
+  {n:5, day:1, name:"BUW — ogród na dachu", addr:"ul. Dobra 56/66", note:"Darmowe ogrody na dachu biblioteki, widok na Wisłę i Stare Miasto", c:[52.2421,21.0254], next:"🚶 15–18 min do Łazienek"},
+  {n:6, day:1, name:"Łazienki Królewskie", addr:"ul. Agrykoli 1 — Pałac na Wyspie", note:"Pałac na Wyspie, park 76 ha (park bezpłatny), pomnik Chopina", c:[52.2172,21.0339], next:"🚌 ok. 15 min (lub 🚶 40 min)"},
+  {n:7, day:1, name:"Pałac w Wilanowie", addr:"ul. Kostki Potockiego 10/16", note:"Pałac + ogrody — koniec dnia 1", c:[52.1654,21.0909], next:"🚌 ~30 min powrót do centrum"},
+  {n:8, day:2, name:"Pałac Kultury i Nauki", addr:"Plac Defilad 1", note:"Taras widokowy 30. piętro — panorama miasta", c:[52.2318,21.0067], next:"🚶 7 min (Nowy Świat)"},
+  {n:9, day:2, name:"Pawilony", addr:"Nowy Świat 58", note:"Pawilony gastronomiczne, piwo rzemieślnicze — przerwa", c:[52.2349,21.0157], next:"🚶 5 min (Chmielna)"},
+  {n:10, day:2, name:"Varso Tower", addr:"ul. Chmielna 73", note:"Taras na 53. piętrze (230 m), budynek 310 m — najwyższy w UE; darmowa wejściówka online", c:[52.2313,21.0103], next:"🚊 ok. 15 min w kierunku Woli (lub 🚶 25 min)"},
+  {n:11, day:2, name:"Dom Kereta 🏁", addr:"ul. Chłodna 22", note:"Najwęższy dom w Europie (~1,5 m) — tylko z zewnątrz; blisko metro Rondo Daszyńskiego", c:[52.2353,20.9896], next:"🏁 koniec trasy"}
+];
+
+const map = L.map('map').setView([52.233, 21.02], 12);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution: '&copy; OpenStreetMap'
+}).addTo(map);
+L.control.scale().addTo(map);
+
+function pin(n, active){
+  return L.divIcon({className:'pinwrap', html:'<div class="pin'+(active?' active':'')+'">'+n+'</div>', iconSize:[30,30], iconAnchor:[15,15], popupAnchor:[0,-16]});
+}
+
+const full = L.polyline(POINTS.map(p=>p.c), {color:'#8a97a8', weight:4, dashArray:'8 8', interactive:false}).addTo(map);
+const prog = L.polyline([], {color:'#1a73e8', weight:6, interactive:false}).addTo(map);
+
+const markers = POINTS.map((p,i)=>L.marker(p.c, {icon:pin(p.n,false)}).addTo(map)
+  .bindPopup('<b>'+p.n+'. '+p.name+'</b><br>'+p.addr+'<br><i>'+p.note+'</i><br><small>Dzień '+p.day+'</small>'));
+
+const status = document.getElementById('status');
+const cur = document.getElementById('cur');
+const list = document.getElementById('list');
+let step = 0, timer = null;
+
+POINTS.forEach((p,i)=>{
+  const li = document.createElement('li');
+  li.innerHTML = '<span class="num">'+p.n+'</span><span>'+p.name+'</span><span class="day">D'+p.day+'</span>';
+  li.addEventListener('click', ()=>go(i+1));
+  list.appendChild(li);
+});
+
+function zoomFor(n){ return Math.min(13 + Math.ceil(n/2), 18); }
+
+function go(n){
+  stopAuto();
+  step = Math.max(0, Math.min(POINTS.length, n));
+  markers.forEach((m,i)=>m.setIcon(pin(i+1, i+1===step)));
+  prog.setLatLngs(POINTS.slice(0, step+1).map(p=>p.c));
+  const items = list.querySelectorAll('li');
+  items.forEach((li,i)=>{ li.classList.toggle('active', i+1===step); li.classList.toggle('done', i+1<step); });
+  if(step===0){
+    status.textContent = 'Przegląd całej trasy — ' + POINTS.length + ' punktów (start: Stare Miasto)';
+    cur.innerHTML = 'Kliknij „Następny ▶" — mapa będzie przeskakiwać punkt po punkcie i <b>powiększać się inkrementalnie z każdym krokiem</b>.';
+    map.flyToBounds(full.getBounds(), {padding:[60,60]});
+  } else {
+    const p = POINTS[step-1];
+    status.textContent = 'Krok ' + step + ' / ' + POINTS.length + ' — Dzień ' + p.day;
+    cur.innerHTML = '<b>'+p.n+'. '+p.name+'</b><br>'+p.addr+'<br><span class="note">'+p.note+'</span><br><span class="day">Dzień '+p.day+'</span><br><b>Dalej:</b> '+p.next;
+    const z = zoomFor(step);
+    if(step>1 && map.distance(POINTS[step-2].c, p.c) > 1500){
+      map.flyToBounds(L.latLngBounds([POINTS[step-2].c, p.c]), {padding:[80,80], maxZoom:z, duration:1.2});
+    } else {
+      map.flyTo(p.c, z, {duration:1.1});
+    }
+  }
+}
+
+function stopAuto(){ if(timer){clearInterval(timer); timer=null;} document.getElementById('auto').textContent='▶ Auto'; }
+document.getElementById('next').addEventListener('click', ()=>go(step+1));
+document.getElementById('prev').addEventListener('click', ()=>go(step-1));
+document.getElementById('all').addEventListener('click', ()=>go(0));
+document.getElementById('auto').addEventListener('click', ()=>{
+  if(timer){ stopAuto(); return; }
+  document.getElementById('auto').textContent='⏸ Pauza';
+  timer = setInterval(()=>{ if(step>=POINTS.length){stopAuto(); return;} go(step+1); }, 2600);
+});
+
+go(0);
+</script>
+</body>
+</html>
