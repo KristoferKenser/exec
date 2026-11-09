@@ -45,7 +45,7 @@
 <body>
 <div id="mapwrap"><div id="map"></div></div>
 <div id="panel">
-  <h1>🗺️ Trasa po Warszawie — 11 punktów</h1>
+  <h1>🗺️ Trasa po Warszawie — 8 punktów</h1>
   <div id="status"></div>
   <div id="cur"></div>
   <div class="btns">
@@ -65,17 +65,14 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const POINTS = [
-  {n:1, day:1, name:"Stare Miasto — START", addr:"Rynek Starego Miasta / Plac Zamkowy", note:"Zamek Królewski, rynek, katedra św. Jana, Kolumna Zygmunta, barbakan", c:[52.2497,21.0122], next:"🚶 5 min w dół na bulwary"},
-  {n:2, day:1, name:"Bulwary wiślane", addr:"Wybrzeże Kościuszkowskie / Hetmańskie", note:"Promenada nad Wisłą, plaże miejskie, widok na Pragę", c:[52.2437,21.0140], next:"🌉 most Śląsko-Dąbrowski, 🚶 10 min na Pragę"},
-  {n:3, day:1, name:"Prawy brzeg Wisły (dziki)", addr:"Praga Północ — Port Praski, plaża przy moście Poniatowskiego", note:"Dzikie plaże, bulwary praskie, najlepszy widok z powrotem na Stare Miasto", c:[52.2553,21.0407], next:"🚶 20 min — powrót mostem Poniatowskiego na lewy brzeg"},
-  {n:4, day:1, name:"Elektrownia Powiśle", addr:"ul. Elektryczna 2", note:"Restauracje i sklepy w dawnej elektrowni, tuż nad wodą — przerwa na kawę", c:[52.2373,21.0300], next:"🚶 10 min (Karowa → Dobra)"},
-  {n:5, day:1, name:"BUW — ogród na dachu", addr:"ul. Dobra 56/66", note:"Darmowe ogrody na dachu biblioteki, widok na Wisłę i Stare Miasto", c:[52.2421,21.0254], next:"🚶 15–18 min do Łazienek"},
-  {n:6, day:1, name:"Łazienki Królewskie", addr:"ul. Agrykoli 1 — Pałac na Wyspie", note:"Pałac na Wyspie, park 76 ha (park bezpłatny), pomnik Chopina", c:[52.2172,21.0339], next:"🚌 ok. 15 min (lub 🚶 40 min)"},
-  {n:7, day:1, name:"Pałac w Wilanowie", addr:"ul. Kostki Potockiego 10/16", note:"Pałac + ogrody — koniec dnia 1", c:[52.1654,21.0909], next:"🚌 ~30 min powrót do centrum"},
-  {n:8, day:2, name:"Pałac Kultury i Nauki", addr:"Plac Defilad 1", note:"Taras widokowy 30. piętro — panorama miasta", c:[52.2318,21.0067], next:"🚶 7 min (Nowy Świat)"},
-  {n:9, day:2, name:"Pawilony", addr:"Nowy Świat 58", note:"Pawilony gastronomiczne, piwo rzemieślnicze — przerwa", c:[52.2349,21.0157], next:"🚶 5 min (Chmielna)"},
-  {n:10, day:2, name:"Varso Tower", addr:"ul. Chmielna 73", note:"Taras na 53. piętrze (230 m), budynek 310 m — najwyższy w UE; darmowa wejściówka online", c:[52.2313,21.0103], next:"🚊 ok. 15 min w kierunku Woli (lub 🚶 25 min)"},
-  {n:11, day:2, name:"Dom Kereta 🏁", addr:"ul. Chłodna 22", note:"Najwęższy dom w Europie (~1,5 m) — tylko z zewnątrz; blisko metro Rondo Daszyńskiego", c:[52.2353,20.9896], next:"🏁 koniec trasy"}
+  {n:1, day:1, name:"Stare Miasto — START", addr:"Rynek Starego Miasta / Plac Zamkowy", note:"Zamek Królewski, rynek, katedra św. Jana, Kolumna Zygmunta, barbakan", c:[52.2497,21.0122], next:"🚶 5 min w dół na bulwary (przy rzece)"},
+  {n:2, day:1, name:"Bulwary wiślane", addr:"Wybrzeże Hetmańskie — przy samej rzece, pod Starym Miastem", note:"Promenada nad Wisłą, plaże miejskie, widok na Pragę", c:[52.2430,21.0188], next:"🚶 10 min w górę (Karowa → Dobra)"},
+  {n:3, day:1, name:"BUW — ogród na dachu", addr:"ul. Dobra 56/66", note:"Darmowe ogrody na dachu biblioteki, widok na Wisłę i Stare Miasto", c:[52.2421,21.0254], next:"🚶 15–18 min do Łazienek"},
+  {n:4, day:1, name:"Łazienki Królewskie", addr:"ul. Agrykoli 1 — Pałac na Wyspie", note:"Pałac na Wyspie, park 76 ha (park bezpłatny), pomnik Chopina", c:[52.2172,21.0339], next:"🚌 ok. 15 min (lub 🚶 40 min)"},
+  {n:5, day:1, name:"Pałac w Wilanowie", addr:"ul. Kostki Potockiego 10/16", note:"Pałac + ogrody — koniec dnia 1", c:[52.1654,21.0909], next:"🚌 ~30 min powrót do centrum"},
+  {n:6, day:2, name:"Pałac Kultury i Nauki", addr:"Plac Defilad 1", note:"Taras widokowy 30. piętro — panorama miasta", c:[52.2318,21.0067], next:"🚶 5 min (Chmielna)"},
+  {n:7, day:2, name:"Varso Tower", addr:"ul. Chmielna 73", note:"Taras na 53. piętrze (230 m), budynek 310 m — najwyższy w UE; darmowa wejściówka online", c:[52.2313,21.0103], next:"🚊 ok. 15 min w kierunku Woli (lub 🚶 25 min)"},
+  {n:8, day:2, name:"Dom Kereta 🏁", addr:"ul. Chłodna 22", note:"Najwęższy dom w Europie (~1,5 m) — tylko z zewnątrz; blisko metro Rondo Daszyńskiego", c:[52.2353,20.9896], next:"🏁 koniec trasy"}
 ];
 
 const map = L.map('map').setView(POINTS[0].c, 15);
