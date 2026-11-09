@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trasa po Warszawie — mapa krok po kroku</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  html,body{margin:0;height:100%;font-family:Arial,Helvetica,sans-serif;overflow:hidden;}
+  #mapwrap{position:absolute;inset:0;perspective:1200px;perspective-origin:50% 50%;overflow:hidden;background:#eef0f2;}
+  #map{height:100%;transform-origin:50% 50%;transition:transform .25s ease-out;will-change:transform;}
+  #panel{position:absolute;top:10px;right:10px;width:330px;max-height:calc(100vh - 20px);overflow-y:auto;background:#fff;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,.25);padding:12px 14px;z-index:1000;}
+  #panel h1{font-size:16px;margin:0 0 6px;}
+  #status{font-size:13px;font-weight:bold;color:#c81e1e;margin-bottom:6px;}
+  #cur{font-size:13px;line-height:1.45;background:#faf3f3;border-radius:8px;padding:8px 10px;margin-bottom:8px;}
+  #cur .note{color:#555;}
+  #cur .day{display:inline-block;background:#e8f0e8;color:#1e7a1e;border-radius:6px;padding:1px 6px;font-size:11px;margin-top:4px;}
+  .btns{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
+  .tiltrow{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:8px;}
+  button{cursor:pointer;border:1px solid #ccc;background:#fff;border-radius:6px;padding:6px 10px;font-size:13px;}
+  button:hover{background:#f5f5f5;}
+  #next{background:#c81e1e;color:#fff;border-color:#c81e1e;}
+  #list{margin:0;padding-left:0;list-style:none;font-size:13px;}
+  #list li{padding:5px 6px;border-radius:6px;cursor:pointer;display:flex;gap:6px;align-items:center;}
+  #list li:hover{background:#f0f0f0;}
+  #list li.active{background:#fbdcdc;font-weight:bold;}
+  #list li.done{color:#c81e1e;}
+  #list li.done .num{background:#c81e1e;}
+  #list li.locked{color:#b8b8b8;cursor:default;}
+  #list li.locked .num{background:#d5d5d5;}
+  #list .num{display:inline-flex;width:22px;height:22px;border-radius:50%;background:#9ab;color:#fff;align-items:center;justify-content:center;font-size:12px;font-weight:bold;flex:none;}
+  #list .day{margin-left:auto;font-size:11px;color:#888;}
+  .pinwrap{background:none;border:none;}
+  .pin{width:30px;height:30px;border-radius:50%;background:#c81e1e;color:#fff;font-weight:bold;font-size:14px;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.4);transition:transform .2s;}
+  .pin.active{background:#1a73e8;transform:scale(1.4);}
+  .pin.done{background:#c81e1e;}
+  #frame{display:none;position:absolute;left:50%;top:50%;width:66.7%;height:66.7%;transform:translate(-50%,-50%);border:2px dashed rgba(60,60,60,.45);border-radius:6px;pointer-events:none;z-index:900;}
+  #frame.on{display:block;}
+  #showpanel{display:none;position:absolute;top:10px;right:10px;z-index:1001;}
+  #showpanel.visible{display:block;}
+  #panel.hidden{display:none;}
+  @media (max-width:600px){#panel{width:calc(100vw - 20px);}}
+</style>
+</head>
+<body>
+<div id="mapwrap"><div id="map"></div></div>
+<div id="panel">
+  <h1>🗺️ Trasa po Warszawie — 8 punktów</h1>
+  <div id="status"></div>
+  <div id="cur"></div>
+  <div class="btns">
+    <button id="prev">⬅ Wstecz</button>
+    <button id="next">Następny ▶</button>
+    <button id="auto">▶ Auto</button>
+    <button id="all">↺ Start</button>
+    <button id="center">🎯 Wyśrodkuj</button>
+    <button id="framebtn">🖼 Ramka</button>
+    <button id="hidepanel">🙈 Menu</button>
+  </div>
+  <div class="tiltrow"><span>🧭 Nachylenie</span><input id="tilt" type="range" min="0" max="65" step="1" value="0" style="flex:1"><span id="tiltval">0°</span></div>
+  <ol id="list"></ol>
+</div>
+<button id="showpanel">☰ Menu</button>
+<div id="frame"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const POINTS = [
+  {n:1, day:1, name:"Stare Miasto — START", addr:"Rynek Starego Miasta / Plac Zamkowy", note:"Zamek Królewski, rynek, katedra św. Jana, Kolumna Zygmunta, barbakan", c:[52.2497,21.0122], next:"🚶 ok. 10 min w dół na bulwary (przy rzece)"},
+  {n:2, day:1, name:"Bulwary wiślane", addr:"Bulwary nad Wisłą (52°14'39.2\"N 21°01'31.5\"E) — przy samej rzece", note:"Promenada nad Wisłą, plaże miejskie, widok na Pragę", c:[52.2442,21.0254], next:"🚶 3–4 min w górę do BUW (Dobra)"},
+  {n:3, day:1, name:"BUW — ogród na dachu", addr:"ul. Dobra 56/66", note:"Darmowe ogrody na dachu biblioteki, widok na Wisłę i Stare Miasto", c:[52.2421,21.0254], next:"🚶 15–18 min do Łazienek"},
+  {n:4, day:1, name:"Łazienki Królewskie", addr:"ul. Agrykoli 1 — Pałac na Wyspie", note:"Pałac na Wyspie, park 76 ha (park bezpłatny), pomnik Chopina", c:[52.2172,21.0339], next:"🚌 ok. 15 min (lub 🚶 40 min)"},
+  {n:5, day:1, name:"Pałac w Wilanowie", addr:"ul. Kostki Potockiego 10/16", note:"Pałac + ogrody — koniec dnia 1", c:[52.1654,21.0909], next:"🚌 ~30 min powrót do centrum"},
+  {n:6, day:2, name:"Pałac Kultury i Nauki", addr:"Plac Defilad 1", note:"Taras widokowy 30. piętro — panorama miasta", c:[52.2318,21.0067], next:"🚶 5 min (Chmielna)"},
+  {n:7, day:2, name:"Varso Tower", addr:"ul. Chmielna 73", note:"Taras na 53. piętrze (230 m), budynek 310 m — najwyższy w UE; darmowa wejściówka online", c:[52.2313,21.0103], next:"🚊 ok. 15 min w kierunku Woli (lub 🚶 25 min)"},
+  {n:8, day:2, name:"Dom Kereta 🏁", addr:"ul. Chłodna 22", note:"Najwęższy dom w Europie (~1,5 m) — tylko z zewnątrz; blisko metro Rondo Daszyńskiego", c:[52.2353,20.9896], next:"🏁 koniec trasy"}
+];
+
+const map = L.map('map').setView(POINTS[0].c, 15);
+const esriAttr = 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ';
+const gray = L.layerGroup([
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {maxZoom:18, attribution:esriAttr}),
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {maxZoom:18, attribution:esriAttr})
+]).addTo(map);
+const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'});
+const street = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {maxZoom:18, attribution:esriAttr});
+const sat = L.layerGroup([
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:18, attribution:'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics'}),
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {maxZoom:18, attribution:esriAttr})
+]);
+L.control.layers({
+  'Szary — Esri Light Gray': gray,
+  'Mapa ulic — OSM': osm,
+  'Mapa ulic — Esri': street,
+  'Satelita — Esri': sat
+}, null, {position:'topleft'}).addTo(map);
+L.control.scale().addTo(map);
+
+function pin(n, active){
+  return L.divIcon({className:'pinwrap', html:'<div class="pin'+(active?' active':'')+'">'+n+'</div>', iconSize:[30,30], iconAnchor:[15,15], popupAnchor:[0,-16]});
+}
+
+const markers = POINTS.map((p,i)=>L.marker(p.c, {icon:pin(p.n,false)})
+  .bindPopup('<b>'+p.n+'. '+p.name+'</b><br>'+p.addr+'<br><i>'+p.note+'</i><br><small>Dzień '+p.day+'</small>'));
+
+function curve(a, b, sign){
+  const mx=(a[0]+b[0])/2, my=(a[1]+b[1])/2;
+  const dx=b[1]-a[1], dy=b[0]-a[0];
+  const len=Math.hypot(dx,dy)||1e-9;
+  const off=Math.min(0.14*len, 0.0022)*sign;
+  const cx=mx+(-dy/len)*off, cy=my+(dx/len)*off;
+  const pts=[];
+  for(let i=0;i<=24;i++){
+    const t=i/24, u=1-t;
+    pts.push([u*u*a[0]+2*u*t*cx+t*t*b[0], u*u*a[1]+2*u*t*cy+t*t*b[1]]);
+  }
+  return pts;
+}
+
+const segLayers = [];
+let step = 0, timer = null;
+
+const status = document.getElementById('status');
+const cur = document.getElementById('cur');
+const list = document.getElementById('list');
+
+POINTS.forEach((p,i)=>{
+  const li = document.createElement('li');
+  li.innerHTML = '<span class="num">'+p.n+'</span><span>'+p.name+'</span><span class="day">D'+p.day+'</span>';
+  li.addEventListener('click', ()=>go(i+1));
+  list.appendChild(li);
+});
+
+function zoomFor(n){ return Math.min(13 + Math.ceil(n/2), 18); }
+
+function go(n){
+  stopAuto();
+  step = Math.max(0, Math.min(POINTS.length, n));
+  const vis = step===0 ? 1 : step;
+  markers.forEach((m,i)=>{
+    if(i<vis){ if(!map.hasLayer(m)) map.addLayer(m); }
+    else if(map.hasLayer(m)) map.removeLayer(m);
+    m.setIcon(pin(i+1, i+1===step));
+  });
+  while(segLayers.length > Math.max(0, step-1)){
+    const pair = segLayers.pop();
+    pair.forEach(l=>map.removeLayer(l));
+  }
+  for(let s=segLayers.length+2; s<=step; s++){
+    const pts = curve(POINTS[s-2].c, POINTS[s-1].c, (s%2===0)?1:-1);
+    const casing = L.polyline(pts, {color:'#ffffff', weight:11, opacity:.85, lineCap:'round', lineJoin:'round', interactive:false});
+    const line = L.polyline(pts, {color:'#d62020', weight:6.5, opacity:.95, lineCap:'round', lineJoin:'round', interactive:false});
+    casing.addTo(map);
+    line.addTo(map);
+    segLayers.push([casing, line]);
+  }
+  const items = list.querySelectorAll('li');
+  items.forEach((li,i)=>{
+    li.classList.toggle('active', i+1===step);
+    li.classList.toggle('done', i+1<step);
+    li.classList.toggle('locked', i+1>vis);
+  });
+  if(step===0){
+    status.textContent = 'Start — punkt 1 z ' + POINTS.length;
+    cur.innerHTML = '<b>1. '+POINTS[0].name+'</b><br>'+POINTS[0].addr+'<br><span class="note">'+POINTS[0].note+'</span><br>Kliknij „Następny ▶" — <b>kolejne punkty i czerwona trasa pojawią się dopiero po dojściu do nich</b>, a mapa będzie się powiększać z każdym krokiem <b>bez przesuwania</b> (do wyśrodkowania na punkcie służy 🎯 Wyśrodkuj).';
+    map.flyTo(POINTS[0].c, 15, {duration:1.0});
+  } else {
+    const p = POINTS[step-1];
+    status.textContent = 'Krok ' + step + ' / ' + POINTS.length + ' — Dzień ' + p.day;
+    cur.innerHTML = '<b>'+p.n+'. '+p.name+'</b><br>'+p.addr+'<br><span class="note">'+p.note+'</span><br><span class="day">Dzień '+p.day+'</span><br><b>Dalej:</b> '+p.next;
+    const z = Math.max(map.getZoom(), zoomFor(step));
+    if(step>=2 && map.distance(POINTS[step-2].c, p.c) > 1500){
+      map.flyToBounds(L.latLngBounds([POINTS[step-2].c, p.c]), {padding:[90,90], maxZoom:z, duration:1.2});
+    } else {
+      map.flyTo(map.getCenter(), z, {duration:1.0});
+    }
+  }
+}
+
+function stopAuto(){ if(timer){clearInterval(timer); timer=null;} document.getElementById('auto').textContent='▶ Auto'; }
+document.getElementById('next').addEventListener('click', ()=>go(step+1));
+document.getElementById('prev').addEventListener('click', ()=>go(step-1));
+document.getElementById('all').addEventListener('click', ()=>go(0));
+document.getElementById('auto').addEventListener('click', ()=>{
+  if(timer){ stopAuto(); return; }
+  document.getElementById('auto').textContent='⏸ Pauza';
+  timer = setInterval(()=>{ if(step>=POINTS.length){stopAuto(); return;} go(step+1); }, 2600);
+});
+
+let tilt = 0;
+const mapEl = document.getElementById('map');
+function setTilt(d){
+  tilt = Math.max(0, Math.min(65, d));
+  const rad = tilt * Math.PI / 180;
+  const sc = Math.min(1.5, 1 / Math.max(0.55, Math.cos(rad)));
+  mapEl.style.transform = 'rotateX(' + tilt + 'deg) scale(' + sc + ')';
+  document.getElementById('tiltval').textContent = Math.round(tilt) + '°';
+  document.getElementById('tilt').value = Math.round(tilt);
+}
+document.getElementById('tilt').addEventListener('input', e=>setTilt(+e.target.value));
+let twoFinger = null;
+mapEl.addEventListener('touchstart', e=>{
+  if(e.touches.length===2){ twoFinger = {y:(e.touches[0].clientY+e.touches[1].clientY)/2, tilt:tilt}; }
+}, {passive:true});
+mapEl.addEventListener('touchmove', e=>{
+  if(e.touches.length===2 && twoFinger){
+    e.preventDefault();
+    const y = (e.touches[0].clientY + e.touches[1].clientY)/2;
+    setTilt(twoFinger.tilt + (twoFinger.y - y)/1.5);
+  }
+}, {passive:false});
+mapEl.addEventListener('touchend', ()=>{ twoFinger = null; });
+
+document.getElementById('center').addEventListener('click', ()=>{
+  const i = Math.max(1, step) - 1;
+  map.flyTo(POINTS[i].c, map.getZoom(), {duration:0.8});
+});
+const panel = document.getElementById('panel');
+const showpanel = document.getElementById('showpanel');
+document.getElementById('hidepanel').addEventListener('click', ()=>{
+  panel.classList.add('hidden');
+  showpanel.classList.add('visible');
+});
+showpanel.addEventListener('click', ()=>{
+  panel.classList.remove('hidden');
+  showpanel.classList.remove('visible');
+});
+const frame = document.getElementById('frame');
+document.getElementById('framebtn').addEventListener('click', ()=>frame.classList.toggle('on'));
+
+go(0);
+</script>
+</body>
+</html>
