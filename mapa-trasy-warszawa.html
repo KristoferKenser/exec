@@ -34,6 +34,11 @@
   .pin{width:30px;height:30px;border-radius:50%;background:#c81e1e;color:#fff;font-weight:bold;font-size:14px;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.4);transition:transform .2s;}
   .pin.active{background:#1a73e8;transform:scale(1.4);}
   .pin.done{background:#c81e1e;}
+  #frame{display:none;position:absolute;left:50%;top:50%;width:66.7%;height:66.7%;transform:translate(-50%,-50%);border:2px dashed rgba(60,60,60,.45);border-radius:6px;pointer-events:none;z-index:900;}
+  #frame.on{display:block;}
+  #showpanel{display:none;position:absolute;top:10px;right:10px;z-index:1001;}
+  #showpanel.visible{display:block;}
+  #panel.hidden{display:none;}
   @media (max-width:600px){#panel{width:calc(100vw - 20px);}}
 </style>
 </head>
@@ -48,10 +53,15 @@
     <button id="next">Następny ▶</button>
     <button id="auto">▶ Auto</button>
     <button id="all">↺ Start</button>
+    <button id="center">🎯 Wyśrodkuj</button>
+    <button id="framebtn">🖼 Ramka</button>
+    <button id="hidepanel">🙈 Menu</button>
   </div>
   <div class="tiltrow"><span>🧭 Nachylenie</span><input id="tilt" type="range" min="0" max="65" step="1" value="0" style="flex:1"><span id="tiltval">0°</span></div>
   <ol id="list"></ol>
 </div>
+<button id="showpanel">☰ Menu</button>
+<div id="frame"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const POINTS = [
@@ -203,6 +213,23 @@ mapEl.addEventListener('touchmove', e=>{
   }
 }, {passive:false});
 mapEl.addEventListener('touchend', ()=>{ twoFinger = null; });
+
+document.getElementById('center').addEventListener('click', ()=>{
+  const i = Math.max(1, step) - 1;
+  map.flyTo(POINTS[i].c, map.getZoom(), {duration:0.8});
+});
+const panel = document.getElementById('panel');
+const showpanel = document.getElementById('showpanel');
+document.getElementById('hidepanel').addEventListener('click', ()=>{
+  panel.classList.add('hidden');
+  showpanel.classList.add('visible');
+});
+showpanel.addEventListener('click', ()=>{
+  panel.classList.remove('hidden');
+  showpanel.classList.remove('visible');
+});
+const frame = document.getElementById('frame');
+document.getElementById('framebtn').addEventListener('click', ()=>frame.classList.toggle('on'));
 
 go(0);
 </script>
