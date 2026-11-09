@@ -164,18 +164,17 @@ function go(n){
   });
   if(step===0){
     status.textContent = 'Start — punkt 1 z ' + POINTS.length;
-    cur.innerHTML = '<b>1. '+POINTS[0].name+'</b><br>'+POINTS[0].addr+'<br><span class="note">'+POINTS[0].note+'</span><br>Kliknij „Następny ▶" — <b>kolejne punkty i czerwona trasa pojawią się dopiero po dojściu do nich</b>, a mapa będzie się powiększać z każdym krokiem.';
+    cur.innerHTML = '<b>1. '+POINTS[0].name+'</b><br>'+POINTS[0].addr+'<br><span class="note">'+POINTS[0].note+'</span><br>Kliknij „Następny ▶" — <b>kolejne punkty i czerwona trasa pojawią się dopiero po dojściu do nich</b>, a mapa będzie się powiększać z każdym krokiem <b>bez przesuwania</b> (do wyśrodkowania na punkcie służy 🎯 Wyśrodkuj).';
     map.flyTo(POINTS[0].c, 15, {duration:1.0});
   } else {
     const p = POINTS[step-1];
     status.textContent = 'Krok ' + step + ' / ' + POINTS.length + ' — Dzień ' + p.day;
     cur.innerHTML = '<b>'+p.n+'. '+p.name+'</b><br>'+p.addr+'<br><span class="note">'+p.note+'</span><br><span class="day">Dzień '+p.day+'</span><br><b>Dalej:</b> '+p.next;
-    const z = zoomFor(step);
-    if(step>=2 && map.distance(POINTS[step-2].c, p.c) <= 1500){
-      const pts = curve(POINTS[step-2].c, p.c, (step%2===0)?1:-1);
-      map.flyToBounds(L.latLngBounds(pts), {padding:[110,110], maxZoom:z, duration:1.1});
+    const z = Math.max(map.getZoom(), zoomFor(step));
+    if(step>=2 && map.distance(POINTS[step-2].c, p.c) > 1500){
+      map.flyToBounds(L.latLngBounds([POINTS[step-2].c, p.c]), {padding:[90,90], maxZoom:z, duration:1.2});
     } else {
-      map.flyTo(p.c, z, {duration:1.1});
+      map.flyTo(map.getCenter(), z, {duration:1.0});
     }
   }
 }
